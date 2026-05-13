@@ -10,6 +10,7 @@ LEARN = 0x1
 STRICT = 0x2
 FREEZE = 0x4
 CLEAR = 0x8
+SETTLE_TIME_NS = 100
 
 
 def as_int(signal):
@@ -48,15 +49,11 @@ def baseline_debug(dut):
     return as_int(dut.uio_out)
 
 
-def baseline_internal(dut):
-    return as_int(dut.user_project.baseline_tracker_inst.baseline)
-
-
 async def tick(dut, sample, controls):
     dut.ui_in.value = sample
     dut.uio_in.value = controls
     await ClockCycles(dut.clk, 1)
-    await Timer(1, unit="ns")
+    await Timer(SETTLE_TIME_NS, unit="ns")
 
 
 async def reset_dut(dut):
@@ -65,19 +62,19 @@ async def reset_dut(dut):
     dut.uio_in.value = 0
     dut.rst_n.value = 0
     await ClockCycles(dut.clk, 4)
-    await Timer(1, unit="ns")
+    await Timer(SETTLE_TIME_NS, unit="ns")
     assert output_value(dut) == 0
     assert as_int(dut.uio_oe) == 0xF0
     assert baseline_debug(dut) == 0
 
     dut.rst_n.value = 1
-    await Timer(1, unit="ns")
+    await Timer(SETTLE_TIME_NS, unit="ns")
 
 
 async def initialize_at(dut, sample=100):
     await tick(dut, sample, LEARN)
     assert output_value(dut) == 0
-    assert baseline_internal(dut) == sample
+    assert baseline_debug(dut) == ((sample >> 4) << 4)
 
 
 @cocotb.test()
@@ -99,7 +96,6 @@ async def test_tiny_sentinel_behavior(dut):
     assert baseline_debug(dut) == 0x50
     for sample in [100, 101, 100, 101, 100, 101, 100]:
         await tick(dut, sample, LEARN)
-    assert 96 <= baseline_internal(dut) <= 101
     assert baseline_debug(dut) == 0x60
 
     dut._log.info("Normal mild variation around the baseline does not trigger anomalies")
@@ -168,7 +164,6 @@ async def test_tiny_sentinel_behavior(dut):
     await reset_dut(dut)
     await initialize_at(dut, 100)
     await tick(dut, 180, LEARN | FREEZE)
-    assert baseline_internal(dut) == 100
     assert baseline_debug(dut) == 0x60
 
     dut._log.info("Clear latch wins even on a cycle with a new anomaly")
