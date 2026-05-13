@@ -41,6 +41,8 @@ make -B
 
 The testbench resets the design, initializes the baseline, checks normal samples, triggers each anomaly type, verifies strict mode, verifies freeze behavior, confirms latch-clear priority, and checks score decay. The waveform dump is written to `test/tb.fst`.
 
+![Tiny Sentinel RTL waveform](assets/waveform.png)
+
 For a quick hardware-style demo:
 
 1. Hold reset low, then release it.
@@ -54,3 +56,5 @@ For a quick hardware-style demo:
 ## External hardware
 
 Tiny Sentinel can be driven by any external source that presents an 8-bit digital sample stream, such as a microcontroller, FPGA, sensor-interface board, switch bank, or Tiny Tapeout demoboard harness. LEDs or a logic analyzer can be attached to the outputs to visualize anomaly flags, score, latch state, and baseline debug bits.
+
+![Tiny Sentinel GDS render](assets/gds_render.png)

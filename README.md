@@ -96,7 +96,15 @@ The design is fully synchronous to `clk` with active-low reset through `rst_n`. 
 
 ## Screenshots
 
-Waveform and 3D layout screenshots should be added after the GitHub Actions test/docs/GDS workflows pass. The local RTL simulation already generates `test/tb.fst`; the 3D layout screenshot comes from the successful Tiny Tapeout GDS workflow viewer.
+Passing RTL waveform:
+
+![Tiny Sentinel RTL waveform](docs/assets/waveform.png)
+
+GDS render from the TinyTapeout GDS workflow:
+
+![Tiny Sentinel GDS render](docs/assets/gds_render.png)
+
+The deployed TinyTapeout viewer is available at [taz33m.github.io/tiny-sentinel](https://taz33m.github.io/tiny-sentinel/).
 
 ## Limitations
 
