@@ -1,46 +1,37 @@
-# Sample testbench for a Tiny Tapeout project
+# Tiny Sentinel Testbench
 
-This is a sample testbench for a Tiny Tapeout project. It uses [cocotb](https://docs.cocotb.org/en/stable/) to drive the DUT and check the outputs.
-See below to get started or for more information, check the [website](https://tinytapeout.com/hdl/testing/).
-
-## Setting up
-
-1. Edit [Makefile](Makefile) and modify `PROJECT_SOURCES` to point to your Verilog files.
-2. Edit [tb.v](tb.v) and replace `tt_um_example` with your module name.
+This directory contains the cocotb RTL testbench for Tiny Sentinel.
 
 ## How to run
-
-To run the RTL simulation:
 
 ```sh
 make -B
 ```
 
-To run gatelevel simulation, first harden your project and copy `../runs/wokwi/results/final/verilog/gl/{your_module_name}.v` to `gate_level_netlist.v`.
+The testbench instantiates `tt_um_tazeem_tiny_sentinel`, drives the Tiny Tapeout harness pins, and checks the project behavior against the submission spec.
 
-Then run:
+Covered scenarios:
 
-```sh
-make -B GATES=yes
-```
+- Reset and warmup behavior.
+- First learned sample initialization.
+- Baseline adaptation.
+- Normal non-anomalous samples.
+- Spike detection.
+- Stuck-at detection, including repeated zero.
+- Slow drift detection and exact flag timing.
+- Strict mode.
+- Frozen baseline behavior.
+- Alert latch clear priority.
+- Score decay.
+- Fixed `uio_oe` and debug output mapping.
 
-If you wish to save the waveform in VCD format instead of FST format, edit tb.v to use `$dumpfile("tb.vcd");` and then run:
-
-```sh
-make -B FST=
-```
-
-This will generate `tb.vcd` instead of `tb.fst`.
-
-## How to view the waveform file
-
-Using GTKWave
+The simulation writes `tb.fst`. View it with GTKWave or Surfer:
 
 ```sh
 gtkwave tb.fst tb.gtkw
 ```
 
-Using Surfer
+or
 
 ```sh
 surfer tb.fst

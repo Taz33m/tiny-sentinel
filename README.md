@@ -1,42 +1,103 @@
 ![](../../workflows/gds/badge.svg) ![](../../workflows/docs/badge.svg) ![](../../workflows/test/badge.svg) ![](../../workflows/fpga/badge.svg)
 
-# Tiny Tapeout Verilog Project Template
+# Tiny Sentinel
 
-- [Read the documentation for project](docs/info.md)
+Tiny Sentinel is a one-tile hardware sensor-integrity watchdog for Tiny Tapeout. It monitors an 8-bit sensor stream, maintains an adaptive baseline, and flags spike, stuck-at, and slow-drift anomalies in real time using deterministic shift/add logic, small counters, and saturating arithmetic.
 
-## What is Tiny Tapeout?
+The project demonstrates a practical embedded ASIC block: catching sensor failures directly in silicon before software has to poll, filter, or diagnose the stream.
 
-Tiny Tapeout is an educational project that aims to make it easier and cheaper than ever to get your digital and analog designs manufactured on a real chip.
+## What It Does
 
-To learn more and get started, visit https://tinytapeout.com.
+Tiny Sentinel watches `ui_in[7:0]` as a digital sensor sample. After calibration, it compares each sample against the previous sample and the learned baseline:
 
-## Set up your Verilog project
+- Sudden jumps raise `spike_detected`.
+- Repeated identical samples raise `stuck_detected`, including repeated zero.
+- Sustained deviation from the baseline raises `drift_detected`.
+- A 3-bit score rises on anomaly events and decays on clean samples.
+- A latch records that an anomaly happened until cleared.
 
-1. Add your Verilog files to the `src` folder.
-2. Edit the [info.yaml](info.yaml) and update information about your project, paying special attention to the `source_files` and `top_module` properties. If you are upgrading an existing Tiny Tapeout project, check out our [online info.yaml migration tool](https://tinytapeout.github.io/tt-yaml-upgrade-tool/).
-3. Edit [docs/info.md](docs/info.md) and add a description of your project.
-4. Adapt the testbench to your design. See [test/README.md](test/README.md) for more information.
+## Pin Map
 
-The GitHub action will automatically build the ASIC files using [LibreLane](https://www.zerotoasiccourse.com/terminology/librelane/).
+| Pin | Direction | Meaning |
+| --- | --- | --- |
+| `ui_in[7:0]` | input | Current 8-bit sensor sample |
+| `uo_out[0]` | output | Any anomaly |
+| `uo_out[1]` | output | Spike / sudden jump detected |
+| `uo_out[2]` | output | Stuck-at sample detected |
+| `uo_out[3]` | output | Slow drift detected |
+| `uo_out[6:4]` | output | Saturating anomaly score |
+| `uo_out[7]` | output | Latched alert |
+| `uio_in[0]` | input | Learn/adapt baseline enable |
+| `uio_in[1]` | input | Strict mode |
+| `uio_in[2]` | input | Freeze baseline |
+| `uio_in[3]` | input | Clear latched alert |
+| `uio_out[7:4]` | output | Baseline high nibble |
+| `uio_out[3:0]` | output | Tied low |
 
-## Enable GitHub actions to build the results page
+`uio_oe` is fixed to `8'b11110000`, so `uio[3:0]` are controls and `uio[7:4]` are debug outputs.
 
-- [Enabling GitHub Pages](https://tinytapeout.com/faq/#my-github-action-is-failing-on-the-pages-part)
+## Detection Logic
 
-## Resources
+The baseline tracker initializes on the first learned sample. After that, when learning is enabled and freeze is low, it moves toward the current sample by a power-of-two fraction of the difference. If the shifted difference is zero but the sample differs, the baseline still moves by one count.
 
-- [FAQ](https://tinytapeout.com/faq/)
-- [Digital design lessons](https://tinytapeout.com/digital_design/)
-- [Learn how semiconductors work](https://tinytapeout.com/siliwiz/)
-- [Join the community](https://tinytapeout.com/discord)
-- [Build your design locally](https://www.tinytapeout.com/guides/local-hardening/)
+The detector uses two distances:
 
-## What next?
+```text
+abs_diff  = |sample - baseline|
+jump_diff = |sample - previous_sample|
+```
 
-- [Submit your design to the next shuttle](https://app.tinytapeout.com/).
-- Edit [this README](README.md) and explain your design, how it works, and how to test it.
-- Share your project on your social network of choice:
-  - LinkedIn [#tinytapeout](https://www.linkedin.com/search/results/content/?keywords=%23tinytapeout) [@TinyTapeout](https://www.linkedin.com/company/100708654/)
-  - Mastodon [#tinytapeout](https://chaos.social/tags/tinytapeout) [@matthewvenn](https://chaos.social/@matthewvenn)
-  - X (formerly Twitter) [#tinytapeout](https://twitter.com/hashtag/tinytapeout) [@tinytapeout](https://twitter.com/tinytapeout)
-  - Bluesky [@tinytapeout.com](https://bsky.app/profile/tinytapeout.com)
+Normal mode thresholds:
+
+| Detector | Threshold |
+| --- | --- |
+| Spike | `jump_diff >= 24` |
+| Stuck | same sample for 8 repeats |
+| Drift | `abs_diff >= 16` for 4 non-spiking cycles |
+
+Strict mode thresholds:
+
+| Detector | Threshold |
+| --- | --- |
+| Spike | `jump_diff >= 12` |
+| Stuck | same sample for 4 repeats |
+| Drift | `abs_diff >= 8` for 2 non-spiking cycles |
+
+During a demo, use learn mode for calibration. For detection, deassert learn mode or assert freeze mode. If learn remains enabled, the detector still works, but slow-drift detection becomes less sensitive because the baseline tracks the signal.
+
+## Verification
+
+The cocotb testbench covers:
+
+- Reset and initialization.
+- Baseline learning and debug output.
+- Normal mild variation.
+- Spike detection.
+- Stuck detection, including repeated `8'd0`.
+- Drift detection with exact threshold-cycle timing.
+- Strict-mode thresholds.
+- Frozen baseline behavior.
+- Alert latch clear priority.
+- Score decay.
+- Fixed `uio_oe` mapping.
+
+Run:
+
+```sh
+cd test
+make -B
+```
+
+The passing simulation writes `test/tb.fst` for waveform inspection.
+
+## Implementation Notes
+
+The design is fully synchronous to `clk` with active-low reset through `rst_n`. It uses synthesizable Verilog only: no delays, no initial blocks in source, no implicit wires, and all outputs are assigned. It is designed to fit within a standard 1x1 TinyTapeout tile using simple counters, comparators, shift-based averaging, and saturating arithmetic.
+
+## Screenshots
+
+Waveform and 3D layout screenshots should be added after the GitHub Actions test/docs/GDS workflows pass. The local RTL simulation already generates `test/tb.fst`; the 3D layout screenshot comes from the successful Tiny Tapeout GDS workflow viewer.
+
+## Limitations
+
+Tiny Sentinel expects an 8-bit digital sample stream and does not digitize analog signals. The baseline is intentionally simple, so it is easy to synthesize and explain, but it is not a statistical model. Thresholds are fixed in hardware except for normal versus strict mode.
